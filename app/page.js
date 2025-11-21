@@ -1,23 +1,37 @@
 "use client"
-import React, { useState } from "react"
+import React, { useState, useEffect } from "react"
 import axios from "axios"
 import UploadBox from "../components/UploadBox"
-// import PdfPreview from "../components/PdfPreview"
 import Loader from "../components/Loader"
+import LatexPreview from "../components/LatexPreview"
 
 export default function Page() {
   const [jobUrl, setJobUrl] = useState("")
   const [resumeText, setResumeText] = useState("")
   const [jobText, setJobText] = useState("")
   const [latex, setLatex] = useState("")
-  // const [pdfData, setPdfData] = useState(null)
   const [loading, setLoading] = useState(false)
+
+  // Helper to read file as Base64 using FileReader (browser compatible)
+  const readFileAsBase64 = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        const result = reader.result
+        // result is "data:application/pdf;base64,....."
+        // we need only the base64 part
+        const base64 = result.split(',')[1]
+        resolve(base64)
+      }
+      reader.onerror = reject
+      reader.readAsDataURL(file)
+    })
+  }
 
   async function handleParse(file) {
     setLoading(true)
     try {
-      const arrayBuffer = await file.arrayBuffer()
-      const base64 = Buffer.from(arrayBuffer).toString("base64")
+      const base64 = await readFileAsBase64(file)
       const res = await axios.post("/api/parse", {
         fileName: file.name,
         fileType: file.type,
@@ -57,8 +71,6 @@ export default function Page() {
       })
       const latexCode = res.data.latex || ""
       setLatex(latexCode)
-      // Note: PDF compilation with latex.js may require additional setup
-      // For now, we generate LaTeX and provide download options
     } catch (err) {
       console.error(err)
       alert("Failed to generate resume: " + err.message)
@@ -111,7 +123,7 @@ export default function Page() {
           <div className="flex gap-2">
             <button className="btn-primary" onClick={handleGenerate}>Generate Resume</button>
             <button className="btn" onClick={()=>{ if(latex) downloadFile(latex,'resume.tex','application/x-tex') }}>Download LaTeX</button>
-            <button className="btn" onClick={()=>{ alert('PDF generation requires server-side LaTeX compilation. Use the LaTeX file with a TeX distribution.') }}>Download PDF</button>
+            <button className="btn" onClick={() => window.print()}>Download PDF (Print)</button>
           </div>
         </div>
 
@@ -119,10 +131,14 @@ export default function Page() {
           <h2 className="font-semibold mb-2">Preview</h2>
           {loading && <Loader />}
           {!loading && latex && (
-            <div>
-              <h3 className="font-semibold mb-2">Generated LaTeX</h3>
-              <pre className="whitespace-pre-wrap text-sm bg-gray-100 p-3 rounded max-h-96 overflow-auto">{latex}</pre>
-              <p className="text-sm text-gray-600 mt-2">To generate PDF, compile this LaTeX with pdflatex or similar.</p>
+            <div className="space-y-4">
+              <div className="border rounded p-4 bg-white min-h-[500px]">
+                 <LatexPreview latexCode={latex} />
+              </div>
+              <div>
+                <h3 className="font-semibold mb-2">Generated LaTeX Code</h3>
+                <pre className="whitespace-pre-wrap text-xs bg-gray-100 p-3 rounded max-h-40 overflow-auto">{latex}</pre>
+              </div>
             </div>
           )}
         </div>
